@@ -4,6 +4,8 @@ A self-contained, single-page web app for sending and receiving MIDI in the brow
 
 Everything lives in one file, `index.html`. There is no build step, no dependencies and no network access.
 
+**[▶ Launch Web MIDI Monitor](https://riban-bw.github.io/WebMIDI-Tool/)** — run it in your browser straight from GitHub, no download needed.
+
 <img width="1855" height="921" alt="image" src="https://github.com/user-attachments/assets/9991825e-9bfe-4a12-81e8-bc6c2d0db972" />
 
 ## Requirements
