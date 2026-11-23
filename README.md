@@ -26,7 +26,7 @@ If access is denied or unavailable, the status in the header explains why. Click
 ## Ports
 
 - **Inputs:** every available input is listed with a checkbox. Ticked inputs are monitored; untick one to ignore it. Devices that are plugged in or removed appear automatically, and the change is logged.
-- **Output:** choose the port that sent messages go to. When more than one output exists you can also choose **All outputs**. The selection is remembered.
+- **Outputs:** every available output is listed with a checkbox. Sent messages go to each checked output that is currently connected. On first use the first output is checked; after that your choices are remembered.
 
 ## The log
 
@@ -100,7 +100,7 @@ A two-octave clickable keyboard with its own channel and velocity settings. Use 
 
 ## Stored settings
 
-The page saves the SysEx preference, the selected output and the raw-send history in `localStorage`. Clear your site data to reset them.
+The page saves the SysEx preference, the checked outputs and the raw-send history in `localStorage`. Clear your site data to reset them.
 
 ## Troubleshooting
 

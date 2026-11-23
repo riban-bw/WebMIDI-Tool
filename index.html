@@ -39,10 +39,10 @@
   .hint { color:var(--muted); font-size:12px; }
   .error { color:var(--err); font-size:12px; min-height:1em; }
   #raw { flex:1; min-width:0; font-family:var(--mono); }
-  #ports-in { display:flex; flex-direction:column; gap:3px; margin-bottom:8px; }
+  #ports-in, #ports-out { display:flex; flex-direction:column; gap:3px; margin-bottom:8px; }
+  #ports-out { margin-bottom:0; }
   .port-state { color:var(--muted); font-size:11px; }
   .port-state.disconnected { color:var(--err); }
-  #out-select { flex:1; min-width:0; }
   .field { display:flex; flex-direction:column; gap:2px; }
   .field .sub { font-size:11px; color:var(--accent); min-height:1.2em; font-family:var(--mono); }
   #b-preview { font-family:var(--mono); color:var(--out); }
@@ -106,7 +106,7 @@
       <div class="group-label">Inputs (listen)</div>
       <div id="ports-in"><span class="hint">—</span></div>
       <div class="group-label">Output (send to)</div>
-      <div class="row"><select id="out-select"><option value="">(none)</option></select></div>
+      <div id="ports-out"><span class="hint">—</span></div>
     </section>
 
     <section class="panel">
@@ -444,65 +444,66 @@ function onStateChange(e) {
   renderPorts();
 }
 
+function portRow(port, checked, onToggle) {
+  const lab = document.createElement('label');
+  lab.className = 'chk';
+  const cb = document.createElement('input');
+  cb.type = 'checkbox'; cb.checked = checked;
+  cb.onchange = () => onToggle(cb.checked);
+  const name = document.createElement('span');
+  name.textContent = port.name + (port.manufacturer ? ` (${port.manufacturer})` : '');
+  const st = document.createElement('span');
+  st.className = 'port-state ' + port.state;
+  st.textContent = port.state === 'connected' ? port.connection : port.state;
+  lab.append(cb, name, st);
+  return lab;
+}
+
 function renderPorts() {
-  const box = $('#ports-in');
-  box.textContent = '';
-  const sel = $('#out-select');
-  const prev = sel.value;
-  sel.textContent = '';
+  const inBox = $('#ports-in'), outBox = $('#ports-out');
+  inBox.textContent = '';
+  outBox.textContent = '';
   if (!access) {
-    box.innerHTML = '<span class="hint">Not connected</span>';
-    sel.add(new Option('(none)', ''));
+    inBox.innerHTML = outBox.innerHTML = '<span class="hint">Not connected</span>';
     return;
   }
   const inputs = [...access.inputs.values()];
-  if (!inputs.length) box.innerHTML = '<span class="hint">No inputs found</span>';
+  if (!inputs.length) inBox.innerHTML = '<span class="hint">No inputs found</span>';
   for (const inp of inputs) {
     if (!enabledInputs.has(inp.id)) enabledInputs.set(inp.id, true);
     const on = enabledInputs.get(inp.id);
     inp.onmidimessage = on ? onMidiMessage : null;
-    const lab = document.createElement('label');
-    lab.className = 'chk';
-    const cb = document.createElement('input');
-    cb.type = 'checkbox'; cb.checked = on;
-    cb.onchange = () => { enabledInputs.set(inp.id, cb.checked); inp.onmidimessage = cb.checked ? onMidiMessage : null; };
-    const name = document.createElement('span');
-    name.textContent = inp.name + (inp.manufacturer ? ` (${inp.manufacturer})` : '');
-    const st = document.createElement('span');
-    st.className = 'port-state ' + inp.state;
-    st.textContent = inp.state === 'connected' ? inp.connection : inp.state;
-    lab.append(cb, name, st);
-    box.appendChild(lab);
+    inBox.appendChild(portRow(inp, on, c => { enabledInputs.set(inp.id, c); inp.onmidimessage = c ? onMidiMessage : null; }));
   }
   const outputs = [...access.outputs.values()];
-  if (!outputs.length) sel.add(new Option('(no outputs found)', ''));
-  else {
-    for (const o of outputs) sel.add(new Option(o.name + (o.state !== 'connected' ? ' [disconnected]' : ''), o.id));
-    if (outputs.length > 1) sel.add(new Option('— All outputs —', '*'));
-  }
-  if ([...sel.options].some(o => o.value === prev)) sel.value = prev;
-  else {
-    let saved = null;
-    try { saved = localStorage.getItem('webmidi.output'); } catch {}
-    if (saved && [...sel.options].some(o => o.value === saved)) sel.value = saved;
+  if (!outputs.length) outBox.innerHTML = '<span class="hint">No outputs found</span>';
+  // First run with no saved choice: check the first output so sending works out of the box.
+  if (enabledOutputs === null) enabledOutputs = new Set(outputs.slice(0, 1).map(o => o.id));
+  for (const o of outputs) {
+    outBox.appendChild(portRow(o, enabledOutputs.has(o.id), c => {
+      if (c) enabledOutputs.add(o.id); else enabledOutputs.delete(o.id);
+      try { localStorage.setItem('webmidi.outputs', JSON.stringify([...enabledOutputs])); } catch {}
+    }));
   }
 }
 
-$('#out-select').onchange = e => { try { localStorage.setItem('webmidi.output', e.target.value); } catch {} };
+/** Checked output port ids (persisted); null until first loaded/initialised. */
+let enabledOutputs = null;
+try {
+  const saved = JSON.parse(localStorage.getItem('webmidi.outputs'));
+  if (Array.isArray(saved)) enabledOutputs = new Set(saved);
+} catch {}
 
 function targetOutputs() {
   if (!access) return [];
-  const v = $('#out-select').value;
-  if (v === '*') return [...access.outputs.values()].filter(o => o.state === 'connected');
-  const o = v && access.outputs.get(v);
-  return o ? [o] : [];
+  return [...access.outputs.values()].filter(o => enabledOutputs?.has(o.id) && o.state === 'connected');
 }
 
 /** Validate and send bytes to the selected output(s). Throws on error. */
 function sendBytes(bytes) {
   if (!access) throw new Error('Not connected to MIDI');
   const outs = targetOutputs();
-  if (!outs.length) throw new Error('No output port selected');
+  if (!outs.length) throw new Error('No connected output port is checked');
   const msgs = splitMessages(bytes);
   if (!access.sysexEnabled && msgs.some(m => m[0] === 0xF0))
     throw new Error('SysEx is not enabled — tick "Enable SysEx" and grant permission');
