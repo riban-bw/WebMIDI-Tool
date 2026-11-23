@@ -30,6 +30,7 @@
   input, select, button { font:inherit; color:var(--text); background:var(--panel2); border:1px solid var(--border); border-radius:5px; padding:4px 7px; }
   input[type=number] { width:68px; }
   input[type=checkbox], input[type=radio] { accent-color:var(--accent); }
+  input:disabled { opacity:.55; cursor:not-allowed; }
   input:focus, select:focus, button:focus-visible { outline:1px solid var(--accent); outline-offset:0; }
   button { cursor:pointer; white-space:nowrap; }
   button:hover { border-color:var(--accent); }
@@ -56,6 +57,12 @@
   .key.black { height:60%; background:#222; z-index:2; }
   .key.white.lit { background:#9fe3b9; } .key.black.lit { background:#2f8f55; }
   .key.white.down { background:#ffd08a; } .key.black.down { background:#c27a1a; }
+  /* Velocity-by-position: shade keys so the louder (lower) end is visibly darker */
+  #kb.vel-pos .key.white:not(.lit):not(.down) { background:linear-gradient(#f4f5f7, #b9bec8); }
+  #kb.vel-pos .key.black:not(.lit):not(.down) { background:linear-gradient(#3a3d44, #000); }
+  #kb-dock { padding:8px 12px; border-top:1px solid var(--border); background:var(--bg); }
+  #kb-dock[hidden] { display:none; }
+  #kb-dock #kb { height:130px; }
 
   #logwrap { display:flex; flex-direction:column; min-height:0; min-width:0; }
   #toolbar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; padding:8px 12px; border-bottom:1px solid var(--border); background:var(--panel); }
@@ -166,6 +173,10 @@
         <label for="kb-ch">Ch</label><input type="number" id="kb-ch" min="1" max="16" value="1" style="width:52px">
         <label for="kb-vel">Vel</label><input type="number" id="kb-vel" min="1" max="127" value="100" style="width:58px">
       </div>
+      <div class="row">
+        <label class="chk" title="Velocity set by where the key is clicked: soft at the top, 127 at the bottom"><input type="checkbox" id="kb-velpos"> Velocity by position</label>
+        <label class="chk" title="Show the keyboard across the full window width with as many octaves as fit"><input type="checkbox" id="kb-full"> Full width</label>
+      </div>
       <div id="kb"></div>
       <div class="hint" style="margin-top:4px">Incoming notes light up green.</div>
     </section>
@@ -200,6 +211,7 @@
     </div>
   </div>
 </main>
+<div id="kb-dock" hidden></div>
 <div id="toast"></div>
 
 <script>
@@ -828,15 +840,31 @@ const pressed = new Set();
 const litCount = new Map();
 let kbBase = 48;  // C3
 const WHITE = [0, 2, 4, 5, 7, 9, 11];
+const isWhite = n => WHITE.includes(n % 12);
+const MIN_WHITE_PX = 22;  // narrowest white key in full-width mode
+const VEL_GUARD = 0.12;    // fraction of key length at each end that gives min / max velocity
+
+/** Octaves shown: 2 in the side panel, as many as fit (up to the full MIDI range) when full width. */
+function kbOctaves() {
+  if (!$('#kb-full').checked) return 2;
+  return clamp(Math.floor(kb.clientWidth / (MIN_WHITE_PX * 7)), 2, 10);
+}
+const kbMaxBase = () => clamp(108 - 12 * (kbOctaves() - 2), 0, 108);
+let kbShownOctaves = 0;
 
 function renderKb() {
   releaseAll();
   kb.textContent = '';
   keyEls.clear();
-  const nWhite = 15, w = 100 / nWhite;
+  kbShownOctaves = kbOctaves();
+  kbBase = Math.min(kbBase, kbMaxBase());
+  const top = Math.min(127, kbBase + 12 * kbShownOctaves);
+  let nWhite = 0;
+  for (let n = kbBase; n <= top; n++) if (isWhite(n)) nWhite++;
+  const w = 100 / nWhite;
   let wi = 0;
-  for (let n = kbBase; n <= kbBase + 24 && n <= 127; n++) {
-    const isW = WHITE.includes(n % 12);
+  for (let n = kbBase; n <= top; n++) {
+    const isW = isWhite(n);
     const k = document.createElement('div');
     k.className = 'key ' + (isW ? 'white' : 'black');
     k.dataset.note = n;
@@ -851,15 +879,25 @@ function renderKb() {
     kb.appendChild(k);
     keyEls.set(n, k);
   }
-  $('#kb-range').textContent = `${noteName(kbBase)}–${noteName(Math.min(127, kbBase + 24))}`;
+  $('#kb-range').textContent = `${noteName(kbBase)}–${noteName(top)}`;
 }
 const kbChannel = () => clamp(int($('#kb-ch').value), 1, 16) - 1;
-function press(k) {
+/** Velocity for a key press: fixed value, or from the pointer's vertical position (127 at the bottom). */
+function kbVelocity(k, e) {
+  if (!$('#kb-velpos').checked || !e) return clamp(int($('#kb-vel').value), 1, 127);
+  const r = k.getBoundingClientRect();
+  const pos = (e.clientY - r.top) / r.height;
+  const frac = clamp((pos - VEL_GUARD) / (1 - 2 * VEL_GUARD), 0, 1);
+  return clamp(Math.round(1 + frac * 126), 1, 127);
+}
+function press(k, e) {
   const n = +k.dataset.note;
   if (pressed.has(n)) return;
   pressed.add(n);
   k.classList.add('down');
-  sendOrToast([0x90 | kbChannel(), n, clamp(int($('#kb-vel').value), 1, 127)]);
+  const vel = kbVelocity(k, e);
+  if ($('#kb-velpos').checked) $('#kb-vel').value = vel;
+  sendOrToast([0x90 | kbChannel(), n, vel]);
 }
 function release(n) {
   if (!pressed.has(n)) return;
@@ -873,11 +911,11 @@ kb.addEventListener('pointerdown', e => {
   if (!k) return;
   e.preventDefault();
   kb.releasePointerCapture?.(e.pointerId);  // allow glissando on touch
-  press(k);
+  press(k, e);
 });
 kb.addEventListener('pointerover', e => {
   const k = e.target.closest('.key');
-  if (k && (e.buttons & 1)) press(k);
+  if (k && (e.buttons & 1)) press(k, e);
 });
 kb.addEventListener('pointerout', e => {
   const k = e.target.closest('.key');
@@ -887,14 +925,44 @@ window.addEventListener('pointerup', releaseAll);
 window.addEventListener('pointercancel', releaseAll);
 window.addEventListener('blur', releaseAll);
 $('#kb-down').onclick = () => { kbBase = Math.max(0, kbBase - 12); renderKb(); };
-$('#kb-up').onclick = () => { kbBase = Math.min(108, kbBase + 12); renderKb(); };
+$('#kb-up').onclick = () => { kbBase = Math.min(kbMaxBase(), kbBase + 12); renderKb(); };
+
+const kbPanel = kb.closest('.panel');
+const kbPanelHome = { parent: kbPanel.parentNode, next: kbPanel.nextSibling };
+let kbFixedVel = null;  // fixed velocity saved while velocity-by-position is on
+function applyKbOptions() {
+  const full = $('#kb-full').checked, velPos = $('#kb-velpos').checked;
+  const velIn = $('#kb-vel');
+  kb.classList.toggle('vel-pos', velPos);
+  if (velPos && !velIn.disabled) kbFixedVel = velIn.value;
+  else if (!velPos && velIn.disabled && kbFixedVel !== null) velIn.value = kbFixedVel;
+  velIn.disabled = velPos;
+  velIn.title = velPos ? 'Last velocity sent (set by click position)' : '';
+  const dock = $('#kb-dock');
+  if (full) dock.appendChild(kbPanel);
+  else kbPanelHome.parent.insertBefore(kbPanel, kbPanelHome.next);
+  dock.hidden = !full;
+  try {
+    localStorage.setItem('webmidi.kbFull', full ? '1' : '0');
+    localStorage.setItem('webmidi.kbVelPos', velPos ? '1' : '0');
+  } catch {}
+  renderKb();
+}
+$('#kb-full').onchange = applyKbOptions;
+$('#kb-velpos').onchange = applyKbOptions;
+// In full-width mode the number of octaves follows the window width.
+new ResizeObserver(() => { if (kbOctaves() !== kbShownOctaves) renderKb(); }).observe(kb);
+try {
+  $('#kb-full').checked = localStorage.getItem('webmidi.kbFull') === '1';
+  $('#kb-velpos').checked = localStorage.getItem('webmidi.kbVelPos') === '1';
+} catch {}
 
 function lightKey(note, on) {
   const c = Math.max(0, (litCount.get(note) || 0) + (on ? 1 : -1));
   litCount.set(note, c);
   keyEls.get(note)?.classList.toggle('lit', c > 0);
 }
-renderKb();
+applyKbOptions();
 
 /* ---------------- Startup ---------------- */
 try { $('#sysex').checked = localStorage.getItem('webmidi.sysex') === '1'; } catch {}

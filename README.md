@@ -98,6 +98,9 @@ One-click buttons for common messages. Hover to see the exact bytes; **Shift-cli
 
 A two-octave clickable keyboard with its own channel and velocity settings. Use **◀ Oct / Oct ▶** to shift the range. Click and drag for glissando. Incoming notes on any channel light up the matching keys in green.
 
+- **Velocity by position** — velocity is set by where on the key you click: soft near the top, up to 127 at the bottom. A small band at each end of the key gives the minimum / maximum, so you don't need to hit the very edge. The Vel box is disabled and shows the last velocity sent; your fixed velocity is restored when the option is turned off. Keys are shaded to hint at this.
+- **Full width** — moves the keyboard to a strip across the bottom of the window and shows as many octaves as fit (up to the full MIDI range), adjusting as the window is resized.
+
 ## Stored settings
 
 The page saves the SysEx preference, the checked outputs and the raw-send history in `localStorage`. Clear your site data to reset them.
