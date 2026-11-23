@@ -23,6 +23,7 @@
   #side { overflow:auto; padding:12px; border-right:1px solid var(--border); display:flex; flex-direction:column; gap:12px; }
   .panel { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:10px 12px; }
   .panel h2 { font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin:0 0 8px; font-weight:600; }
+  [hidden] { display:none !important; }
   .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:6px; }
   .row:last-child { margin-bottom:0; }
   label { color:var(--muted); font-size:12px; }
@@ -149,7 +150,7 @@
         <div class="field" id="f-d2"><label for="b-d2" id="l-d2">Velocity</label><input type="number" id="b-d2" min="0" max="127" value="100"><span class="sub"></span></div>
         <div class="field" id="f-pb" hidden><label for="b-pb">Bend (−8192…8191)</label><input type="number" id="b-pb" min="-8192" max="8191" value="0" style="width:80px"><span class="sub"></span></div>
       </div>
-      <div class="row"><input type="range" id="b-pb-range" min="-8192" max="8191" value="0" style="flex:1" hidden></div>
+      <div class="row" id="r-pb" hidden><input type="range" id="b-pb-range" min="-8192" max="8191" value="0" style="flex:1"></div>
       <div class="row">
         <span id="b-preview"></span>
         <span style="flex:1"></span>
@@ -746,7 +747,7 @@ function updateBuilder() {
   $('#f-d1').hidden = !t.d1;
   $('#f-d2').hidden = !t.d2;
   $('#f-pb').hidden = !t.pb;
-  $('#b-pb-range').hidden = !t.pb;
+  $('#r-pb').hidden = !t.pb;
   if (t.d1) $('#l-d1').textContent = t.d1;
   if (t.d2) $('#l-d2').textContent = t.d2;
   const d1 = clamp(int($('#b-d1').value), 0, 127);
