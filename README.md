@@ -4,6 +4,8 @@ A self-contained, single-page web app for sending and receiving MIDI in the brow
 
 Everything lives in one file, `index.html`. There is no build step, no dependencies and no network access.
 
+<img width="1856" height="925" alt="image" src="https://github.com/user-attachments/assets/6621875b-3bea-4168-9d54-314d946cc6db" />
+
 ## Requirements
 
 - A browser with the [Web MIDI API](https://developer.mozilla.org/en-US/docs/Web/API/Web_MIDI_API): Chrome, Edge or Opera work best. Firefox supports Web MIDI but may require granting a site permission. Safari does not support Web MIDI.
