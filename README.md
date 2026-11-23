@@ -4,7 +4,7 @@ A self-contained, single-page web app for sending and receiving MIDI in the brow
 
 Everything lives in one file, `index.html`. There is no build step, no dependencies and no network access.
 
-<img width="1856" height="925" alt="image" src="https://github.com/user-attachments/assets/6621875b-3bea-4168-9d54-314d946cc6db" />
+<img width="1855" height="921" alt="image" src="https://github.com/user-attachments/assets/9991825e-9bfe-4a12-81e8-bc6c2d0db972" />
 
 ## Requirements
 
